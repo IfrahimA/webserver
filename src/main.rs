@@ -5,37 +5,36 @@ use std::{
 };
 
 fn main() {
+    //* TCP LISTENER: Listens for incoming connections */
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
+    //* ITERATE: ASYNC */
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-
+        //* HANDLE CONNECTIONS */
         handle_connection(stream);
     }
 }
 
 fn handle_connection(mut stream: TcpStream) {
-    //* Wraps around stream, intead of reading data from the stream. It reads larger chunks at once.
+    //* Wraps around stream, manages the stream by applying a buffer.
     let buf_reader = BufReader::new(&stream);
-    
-    //* HTTP Request: Is a vector of strings that reads and parses each line.
-    let http_request: Vec<_> = buf_reader
-        .lines()
-        .map(|result| result.unwrap())
-        .take_while(|line| !line.is_empty())
-        .collect();
 
-    //* Response Header
-    //* HTML VERSION - STATUS CODE - PHRASE - CRLF */ 
-    let statusline = "HTTP/1.1 200 OK";
-    
-    //* Reading File Contents (sample.html) 
-    let contents = fs::read_to_string("./sample.html").unwrap();
+    //* HTTP Request -> First Line */
+    let request_line = buf_reader.lines().next().unwrap().unwrap();
+
+    //* Request Header */
+    //* METHOD - ROUTE - HTML VERSION - CRLF */
+    let (statusline, filename) = if request_line == "GET / HTTP/1.1" {
+        ("HTTP/1.1 200 OK", "./src/sample.html")
+    } else {
+        ("HTTP/1.1 400 NOT FOUND", "./src/404.html")
+    };
+
+    //* Response Header */
+    //* HTML VERSION - STATUS CODE - PHRASE - CRLF */
+    let contents: String = fs::read_to_string(filename).unwrap();
     let length = contents.len();
-    
-    //* Formatted Response
     let response = format!("{statusline}\r\nContent-Length: {length}\r\n\r\n{contents}");
-
-    //* Returning a Response */
     stream.write_all(response.as_bytes()).unwrap();
 }
